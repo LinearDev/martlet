@@ -1,0 +1,10 @@
+import sqlite3 from 'sqlite3';
+import { Database } from 'sqlite';
+export declare function initializeDB(): Promise<Database<sqlite3.Database, sqlite3.Statement>>;
+export declare function addUser(chatId: string, username: string | undefined, firstName: string | undefined, lastName: string | undefined): Promise<void>;
+export declare function setAdmin(chatId: string, isAdmin: boolean): Promise<void>;
+export declare function setNotificationReceiver(chatId: string, canReceive: boolean): Promise<void>;
+export declare function isAdmin(chatId: string): Promise<boolean>;
+export declare function canReceiveNotifications(chatId: string): Promise<boolean>;
+export declare function getAllNotificationReceivers(): Promise<string[]>;
+export declare function requestSubscription(chatId: string): Promise<boolean>;
