@@ -6,9 +6,11 @@ import {
     setAdmin,
     setNotificationReceiver,
     isAdmin,
-    getAllNotificationReceivers,
-    requestSubscription
+    requestSubscription,
+    getPendingSubscriptionRequests
 } from './db';
+import { handleJenkinsWebhook } from './webhooks/jenkins';
+import { handleDockerWebhook } from './webhooks/docker';
 
 // Express app setup
 const app = express();
@@ -31,87 +33,9 @@ initializeDB().then(() => {
     console.error('Database initialization failed:', error);
 });
 
-// Update the webhook endpoint to send to all notification receivers
-app.post('/jenkins-webhook', async (req, res) => {
-    console.log(req.body);
-    
-    try {
-        const {
-            build: {
-                full_url,
-                number,
-                phase,
-                status,
-                duration,
-                timestamp,
-                scm
-            },
-            name: jobName,
-            display_name: displayName
-        } = req.body;
-
-        // Format duration from milliseconds to readable format
-        const formatDuration = (ms: number) => {
-            const seconds = Math.floor(ms / 1000);
-            const minutes = Math.floor(seconds / 60);
-            const remainingSeconds = seconds % 60;
-            return `${minutes}m ${remainingSeconds}s`;
-        };
-
-        // Get status emoji
-        const getStatusEmoji = (status: string, phase: string) => {
-            const currentStatus = status || phase;
-            switch (currentStatus.toUpperCase()) {
-                case 'SUCCESS':
-                    return '✅';
-                case 'FAILURE':
-                    return '❌';
-                case 'UNSTABLE':
-                    return '⚠️';
-                case 'ABORTED':
-                    return '⏹️';
-                case 'STARTED':
-                    return '🚀';
-                default:
-                    return '🔔';
-            }
-        };
-
-        const statusEmoji = getStatusEmoji(status, phase);
-        const buildDate = new Date(timestamp).toLocaleString();
-
-        const message = `${statusEmoji} <b>Jenkins Build Update</b>
-
-🏗️ <b>Project:</b> ${displayName || jobName}
-🔢 <b>Build:</b> #${number}
-📊 <b>Status:</b> ${status || phase}
-⏱️ <b>Duration:</b> ${formatDuration(duration)}
-🕒 <b>Time:</b> ${buildDate}
-${scm?.branch ? `🌿 <b>Branch:</b> ${scm.branch}\n` : ''}${scm?.commit ? `📝 <b>Commit:</b> ${scm.commit.slice(0, 7)}\n` : ''}
-${full_url ? `🔗 <a href="${full_url}">View Build Details</a>` : ''}`;
-
-        // Get all users who can receive notifications
-        const receivers = await getAllNotificationReceivers();
-
-        // Send to all receivers
-        await Promise.all(
-            receivers.map(chatId =>
-                bot.sendMessage(chatId, message, {
-                    parse_mode: 'HTML',
-                    disable_web_page_preview: true
-                })
-            )
-        );
-
-        res.status(200).json({ success: true });
-    } catch (error) {
-        console.error('Error processing Jenkins webhook:', error);
-        res.status(500).json({
-            success: false,
-            error: 'Failed to process Jenkins notification'
-        });
-    }
-});
+// Update webhook endpoints
+app.post('/jenkins-webhook', (req, res) => handleJenkinsWebhook(req, res, bot));
+app.post('/docker-webhook', (req, res) => handleDockerWebhook(req, res, bot));
 
 app.listen(port, () => {
     console.log(`Server is running on port ${port}`);
@@ -150,6 +74,10 @@ async function setupBotCommands() {
         {
             command: 'getchatid',
             description: 'Get your chat ID'
+        },
+        {
+            command: 'listrequests',
+            description: '(Admin only) List pending subscription requests'
         }
     ]);
 }
@@ -263,4 +191,28 @@ bot.onText(/\/getchatid/, (msg) => {
     bot.sendMessage(chatId, `Your chat ID is: <code>${chatId}</code>`, {
         parse_mode: 'HTML'
     });
+});
+
+// Add the command handler
+bot.onText(/\/listrequests/, async (msg) => {
+    const chatId = msg.chat.id.toString();
+    
+    if (!await isAdmin(chatId)) {
+        return bot.sendMessage(chatId, 'You are not authorized to use this command.');
+    }
+
+    const requests = await getPendingSubscriptionRequests();
+    
+    if (requests.length === 0) {
+        return bot.sendMessage(chatId, 'No pending subscription requests.');
+    }
+
+    const message = requests.map(req => {
+        const name = req.username ? 
+            `@${req.username}` : 
+            `${req.first_name || ''} ${req.last_name || ''}`.trim() || 'Unknown';
+        return `User: ${name}\nChat ID: ${req.chat_id}\nRequested: ${new Date(req.requested_at).toLocaleString()}`;
+    }).join('\n\n');
+
+    bot.sendMessage(chatId, `Pending Subscription Requests:\n\n${message}`);
 });

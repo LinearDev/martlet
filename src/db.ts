@@ -34,6 +34,18 @@ export async function initializeDB() {
     )
   `);
 
+  // Create subscription requests table
+  await db.exec(`
+    CREATE TABLE IF NOT EXISTS subscription_requests (
+      chat_id TEXT,
+      status TEXT DEFAULT 'pending',
+      requested_at DATETIME DEFAULT CURRENT_TIMESTAMP,
+      processed_at DATETIME,
+      PRIMARY KEY (chat_id),
+      FOREIGN KEY (chat_id) REFERENCES users(chat_id)
+    )
+  `);
+
   // Set up default admin if not exists
   await db.run(`
     INSERT OR IGNORE INTO users (chat_id, is_admin, can_receive_notifications)
@@ -62,10 +74,29 @@ export async function setAdmin(chatId: string, isAdmin: boolean) {
 
 export async function setNotificationReceiver(chatId: string, canReceive: boolean) {
   const db = await initializeDB();
-  await db.run(
-    'UPDATE users SET can_receive_notifications = ? WHERE chat_id = ?',
-    [canReceive ? 1 : 0, chatId]
-  );
+  
+  try {
+    await db.run('BEGIN TRANSACTION');
+
+    // Update user's notification status
+    await db.run(
+      'UPDATE users SET can_receive_notifications = ? WHERE chat_id = ?',
+      [canReceive ? 1 : 0, chatId]
+    );
+
+    // Update subscription request status
+    await db.run(
+      `UPDATE subscription_requests 
+       SET status = ?, processed_at = CURRENT_TIMESTAMP
+       WHERE chat_id = ?`,
+      [canReceive ? 'approved' : 'rejected', chatId]
+    );
+
+    await db.run('COMMIT');
+  } catch (error) {
+    await db.run('ROLLBACK');
+    throw error;
+  }
 }
 
 export async function isAdmin(chatId: string): Promise<boolean> {
@@ -96,10 +127,64 @@ export async function getAllNotificationReceivers(): Promise<string[]> {
 
 export async function requestSubscription(chatId: string): Promise<boolean> {
   const db = await initializeDB();
-  // Check if user exists, if not add them
-  await db.run(
-    `INSERT OR IGNORE INTO users (chat_id) VALUES (?)`,
-    [chatId]
-  );
-  return true;
+  
+  try {
+    await db.run('BEGIN TRANSACTION');
+
+    // Ensure user exists
+    await db.run(
+      `INSERT OR IGNORE INTO users (chat_id) VALUES (?)`,
+      [chatId]
+    );
+
+    // Check if there's already a pending request
+    const existingRequest = await db.get(
+      `SELECT status FROM subscription_requests WHERE chat_id = ?`,
+      [chatId]
+    );
+
+    if (existingRequest) {
+      if (existingRequest.status === 'pending') {
+        return false; // Already has a pending request
+      }
+      // Update existing request
+      await db.run(
+        `UPDATE subscription_requests 
+         SET status = 'pending', 
+             requested_at = CURRENT_TIMESTAMP,
+             processed_at = NULL
+         WHERE chat_id = ?`,
+        [chatId]
+      );
+    } else {
+      // Create new request
+      await db.run(
+        `INSERT INTO subscription_requests (chat_id) VALUES (?)`,
+        [chatId]
+      );
+    }
+
+    await db.run('COMMIT');
+    return true;
+  } catch (error) {
+    await db.run('ROLLBACK');
+    throw error;
+  }
+}
+
+export async function getPendingSubscriptionRequests(): Promise<Array<{
+  chat_id: string;
+  username?: string;
+  first_name?: string;
+  last_name?: string;
+  requested_at: string;
+}>> {
+  const db = await initializeDB();
+  return db.all(`
+    SELECT u.chat_id, u.username, u.first_name, u.last_name, sr.requested_at
+    FROM subscription_requests sr
+    JOIN users u ON sr.chat_id = u.chat_id
+    WHERE sr.status = 'pending'
+    ORDER BY sr.requested_at ASC
+  `);
 }
