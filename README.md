@@ -28,7 +28,7 @@ npm install
 
 
 3. Create a Telegram bot and get your bot token from [@BotFather](https://t.me/botfather)
-4. Replace the token in `.env` with your bot token
+4. Replace the token in `.env` with your bot token and the default admin chat ID
 
 ## Development
 
@@ -50,6 +50,24 @@ Start the production server:
 npm start
 ```
 
+## Send test webhook message
+The `test.sh` script sends a test webhook message to the server.
+```bash
+./test.sh <host>
+```
+
+Example:
+
+```bash
+./test.sh http://localhost:2317
+```
+
+## Check the server running status
+
+The server will respond with a JSON object containing the status and the current time.
+```bash
+curl http://localhost:2317/
+```
 
 ## Docker Deployment
 
