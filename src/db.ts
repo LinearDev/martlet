@@ -7,6 +7,12 @@ import { env } from './env';
 
 let db: Database | null = null;
 
+interface ContainerLog {
+    id: string;
+    logs: string;
+    created_at: Date;
+}
+
 export async function initializeDB() {
   if (db) return db;
 
@@ -51,6 +57,15 @@ export async function initializeDB() {
     INSERT OR IGNORE INTO users (chat_id, is_admin, can_receive_notifications)
     VALUES (?, 1, 1)
   `, [env.DEFAULT_ADMIN_CHAT_ID]);
+
+  // Add container_logs table
+  await db.run(`
+    CREATE TABLE IF NOT EXISTS container_logs (
+      id TEXT PRIMARY KEY,
+      logs TEXT NOT NULL,
+      created_at TEXT NOT NULL
+    )
+  `);
 
   return db;
 }
@@ -187,4 +202,30 @@ export async function getPendingSubscriptionRequests(): Promise<Array<{
     WHERE sr.status = 'pending'
     ORDER BY sr.requested_at ASC
   `);
+}
+
+export async function storeContainerLogs(id: string, logs: string): Promise<void> {
+    const db = await initializeDB();
+    await db.run(
+        'INSERT INTO container_logs (id, logs, created_at) VALUES (?, ?, ?)',
+        [id, logs, new Date().toISOString()]
+    );
+}
+
+export async function getContainerLogs(id: string): Promise<string | null> {
+    const db = await initializeDB();
+    const row = await db.get<ContainerLog>(
+        'SELECT logs FROM container_logs WHERE id = ?',
+        [id]
+    );
+    return row?.logs || null;
+}
+
+export async function cleanupOldLogs(hours: number = 1): Promise<void> {
+    const db = await initializeDB();
+    const cutoff = new Date(Date.now() - hours * 60 * 60 * 1000).toISOString();
+    await db.run(
+        'DELETE FROM container_logs WHERE created_at < ?',
+        [cutoff]
+    );
 }

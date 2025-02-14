@@ -1,6 +1,6 @@
 import { DockerEvent } from '../types';
 import TelegramBot from 'node-telegram-bot-api';
-import { getAllNotificationReceivers } from '../db';
+import { getAllNotificationReceivers, storeContainerLogs } from '../db';
 import { Request, Response } from 'express';
 
 export async function handleDockerWebhook(
@@ -89,9 +89,17 @@ export async function handleDockerWebhook(
         
         // Create status message based on event type
         let statusInfo = '';
+        let logId = '';
         if (event.Type === 'container' && event.Action === 'die') {
             const exitCode = event.Actor.Attributes.exitCode;
             statusInfo = `\n📊 <b>Exit Code:</b> ${exitCode}`;
+            const lastLogs = event.Actor.Attributes.lastLogs;
+            if (lastLogs) {
+                // Store logs in database with a unique ID
+                logId = `log_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
+                await storeContainerLogs(logId, lastLogs);
+                statusInfo += `\n📝 <b>Last Logs available</b>`;
+            }
         }
 
         const message = `${emoji} <b>Docker Event</b>
@@ -99,8 +107,8 @@ export async function handleDockerWebhook(
 🔧 <b>Type:</b> ${event.Type}
 📋 <b>Action:</b> ${event.Action}
 🏷️ <b>Container:</b> ${containerName}
-🖼️ <b>Image:</b> ${image}${statusInfo}
-⏰ <b>Time:</b> ${eventTime}`;
+🖼️ <b>Image:</b> ${image}
+⏰ <b>Time:</b> ${eventTime}${statusInfo}`;
 
         // Get all notification receivers
         const receivers = await getAllNotificationReceivers();
@@ -110,7 +118,12 @@ export async function handleDockerWebhook(
             receivers.map(chatId =>
                 bot.sendMessage(chatId, message, {
                     parse_mode: 'HTML',
-                    disable_web_page_preview: true
+                    disable_web_page_preview: true,
+                    reply_markup: event.Actor.Attributes.lastLogs ? {
+                        inline_keyboard: [[
+                            { text: "Show Logs 📝", callback_data: `show_logs:${logId}` }
+                        ]]
+                    } : undefined
                 })
             )
         );

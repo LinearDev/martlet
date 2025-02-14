@@ -9,10 +9,12 @@ import {
     setNotificationReceiver,
     isAdmin,
     requestSubscription,
-    getPendingSubscriptionRequests
+    getPendingSubscriptionRequests,
+    cleanupOldLogs
 } from './db';
 import { handleJenkinsWebhook } from './webhooks/jenkins';
 import { handleDockerWebhook } from './webhooks/docker';
+import { handleCallbackQuery } from './handlers/callbackQueryHandler';
 
 // Express app setup
 const app = express();
@@ -198,3 +200,12 @@ bot.onText(/\/listrequests/, async (msg) => {
 
     bot.sendMessage(chatId, `Pending Subscription Requests:\n\n${message}`);
 });
+
+bot.on('callback_query', (query) => {
+    handleCallbackQuery(bot, query).catch(console.error);
+});
+
+// Clean up old logs every hour
+setInterval(() => {
+    cleanupOldLogs().catch(console.error);
+}, 60 * 60 * 1000);
