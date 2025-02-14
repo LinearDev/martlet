@@ -29,6 +29,7 @@ RUN npm ci --only=production
 # Copy built files from builder stage
 COPY --from=builder /app/dist ./dist
 COPY --from=builder /app/data ./data
+COPY --from=builder /app/.env ./.env
 
 # Create volume for persistent data
 VOLUME /app/data
