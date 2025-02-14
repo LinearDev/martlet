@@ -16,14 +16,15 @@
   "dependencies": {
     "@types/express": "^5.0.0",
     "@types/node": "^22.13.1",
+    "dotenv": "^16.4.7",
     "express": "^4.21.2",
     "node-telegram-bot-api": "^0.66.0",
     "nodemon": "^3.1.9",
     "rimraf": "^6.0.1",
-    "ts-node": "^10.9.2",
-    "typescript": "^5.7.3",
     "sqlite": "^5.1.1",
-    "sqlite3": "^5.1.7"
+    "sqlite3": "^5.1.7",
+    "ts-node": "^10.9.2",
+    "typescript": "^5.7.3"
   },
   "devDependencies": {
     "@types/node-telegram-bot-api": "^0.64.7",

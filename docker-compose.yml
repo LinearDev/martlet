@@ -1,0 +1,15 @@
+version: '3'
+
+services:
+  martlet:
+    image: 
+      - "martlet:latest"
+    container_name:
+      - "martlet"
+    restart:
+      - "always"
+    ports:
+      - "${PORT}:${PORT}"
+    environment:
+      - TELEGRAM_BOT_TOKEN=${TELEGRAM_BOT_TOKEN}
+      - DEFAULT_ADMIN_CHAT_ID=${DEFAULT_ADMIN_CHAT_ID}

@@ -1,3 +1,5 @@
+import { env } from './env';
+
 import TelegramBot from 'node-telegram-bot-api';
 import express from 'express';
 import {
@@ -14,7 +16,6 @@ import { handleDockerWebhook } from './webhooks/docker';
 
 // Express app setup
 const app = express();
-const port = process.env.PORT || 2317;
 
 // Add JSON parsing middleware
 app.use(express.json());
@@ -37,16 +38,14 @@ initializeDB().then(() => {
 app.post('/jenkins-webhook', (req, res) => handleJenkinsWebhook(req, res, bot));
 app.post('/docker-webhook', (req, res) => handleDockerWebhook(req, res, bot));
 
-app.listen(port, () => {
-    console.log(`Server is running on port ${port}`);
+app.listen(env.PORT, env.HOST, () => {
+    console.log(`Server is running on port ${env.PORT}`);
 });
 
 // Telegram bot setup
-// replace the value below with the Telegram token you receive from @BotFather
-const token = '7556519328:AAGuiG1xIIJHMi_jkUC_i2SKW_DM1co1FgU';
 
 // Create a bot that uses 'polling' to fetch new updates
-const bot = new TelegramBot(token, { polling: true });
+const bot = new TelegramBot(env.TELEGRAM_BOT_TOKEN, { polling: true });
 
 // Initialize commands
 async function setupBotCommands() {
@@ -85,23 +84,6 @@ async function setupBotCommands() {
 // Initialize commands
 setupBotCommands().catch(error => {
     console.error('Failed to set up bot commands:', error);
-});
-
-// Matches "/echo [whatever]"
-bot.onText(/\/echo (.+)/, (msg, match) => {
-    // 'msg' is the received Message from Telegram
-    // 'match' is the result of executing the regexp above on the text content
-    // of the message
-
-    const chatId = msg.chat.id;
-    if (!match) {
-        return;
-    }
-    const resp = match[1]; // the captured "whatever"
-
-
-    // send back the matched "whatever" to the chat
-    bot.sendMessage(chatId, resp);
 });
 
 // Error handling for the bot

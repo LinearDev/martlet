@@ -3,9 +3,9 @@ import { open, Database } from 'sqlite';
 import path from 'path';
 import fs from 'fs';
 
-let db: Database | null = null;
+import { env } from './env';
 
-const DEFAULT_ADMIN_CHAT_ID = '486583163';
+let db: Database | null = null;
 
 export async function initializeDB() {
   if (db) return db;
@@ -50,7 +50,7 @@ export async function initializeDB() {
   await db.run(`
     INSERT OR IGNORE INTO users (chat_id, is_admin, can_receive_notifications)
     VALUES (?, 1, 1)
-  `, [DEFAULT_ADMIN_CHAT_ID]);
+  `, [env.DEFAULT_ADMIN_CHAT_ID]);
 
   return db;
 }
