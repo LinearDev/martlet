@@ -98,7 +98,7 @@ export async function handleDockerWebhook(
                 // Store logs in database with a unique ID
                 logId = `log_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`;
                 await storeContainerLogs(logId, lastLogs);
-                statusInfo += `\n📝 <b>Last Logs available</b>`;
+                statusInfo += `\n📝 <b>Last Logs available (hidden)</b>`;
             }
         }
 
